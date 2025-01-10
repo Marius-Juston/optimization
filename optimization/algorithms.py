@@ -1,4 +1,72 @@
 from math import sqrt, log
+import numpy as np
+
+
+class Optimizer:
+    def __init__(self, xmin, xmax, iter):
+        if type(xmin) != int and len(xmin) != len(xmax):
+            raise ValueError("xmin and xmax must have same dimension")
+        self._xmin = xmin
+        self._xmax = xmax
+        self._iter = iter
+
+    def ask(self):
+        raise NotImplementedError
+
+    def tell(self, x, y):
+        raise NotImplementedError
+    
+    def best(self):
+        raise NotImplementedError
+
+    def stop(self):
+        return self._iter <= 0
+
+
+class RandomSearch(Optimizer):
+    def __init__(self, xmin, xmax, iter):
+        super().__init__(xmin, xmax, iter)
+        self._x = None
+        self._y = float('inf')
+
+    def ask(self):
+        return np.random.uniform(low=self._xmin, high=self._xmax)
+
+    def tell(self, x, y):
+        if y < self._y:
+            self._x = x
+            self._y = y
+        self._iter -= 1
+
+    def best(self):
+        return self._x
+    
+
+class Bisection(Optimizer):
+    def __init__(self, xmin, xmax, iter):
+        super().__init__(xmin, xmax, iter)
+        if type(xmin) != float and type(xmin) != int:
+            raise ValueError("bisection only supports one dimensional search")
+        self._leftbound = xmin
+        self._rightbound = xmax
+
+    def ask(self):
+        x0 = (2 / 3) * self._leftbound + (1 / 3) * self._rightbound
+        x1 = (1 / 3) * self._leftbound + (2 / 3) * self._rightbound
+        return [x0, x1]
+    
+    def tell(self, x, y):
+        x0, x1 = x
+        y0, y1 = y
+        if y1 >= y0:
+            self._rightbound = x1
+        else:
+            self._leftbound = x0
+        self._iter -= 1
+
+    def best(self):
+        return (self._leftbound + self._rightbound) / 2
+
 
 def bisection(f, k_min, k_max, iters):
     for _ in range(iters):
