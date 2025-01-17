@@ -81,7 +81,9 @@ class MultiBisection(Optimizer):
     
     def tell(self, xs, ys):
         assert all(isinstance(x, np.ndarray) for x in xs)
-        for x, y, o in zip(xs, ys, self.optims):
+        xs_ordered = list(zip(*xs))
+        ys_ordered = list(zip(*ys))
+        for x, y, o in zip(xs_ordered, ys_ordered, self.optims):
             o.tell(x,y) # (x0, x1) (y0, y1)
     
     def best(self):
