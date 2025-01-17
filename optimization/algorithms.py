@@ -4,7 +4,7 @@ import numpy as np
 
 class Optimizer:
     def __init__(self, xmin, xmax, iter):
-        if type(xmin) != int and len(xmin) != len(xmax):
+        if type(xmin) != float and len(xmin) != len(xmax):
             raise ValueError("xmin and xmax must have same dimension")
         self._xmin = xmin
         self._xmax = xmax
@@ -66,6 +66,29 @@ class Bisection(Optimizer):
 
     def best(self):
         return (self._leftbound + self._rightbound) / 2
+    
+
+class MultiBisection(Optimizer):
+    def __init__(self, xmin, xmax, iter):
+        super().__init__(xmin, xmax, iter)
+        self.optims = [Bisection(*args) for args in zip(xmin, xmax, iter)]
+
+    def ask(self):
+        x_new = [o.ask() for o in self.optims]
+        x_new = list(zip(*x_new))
+        x_new = [np.array(x) for x in x_new]
+        return x_new
+    
+    def tell(self, xs, ys):
+        assert all(isinstance(x, np.ndarray) for x in xs)
+        for x, y, o in zip(xs, ys, self.optims):
+            o.tell(x,y) # (x0, x1) (y0, y1)
+    
+    def best(self):
+        return np.array([o.best() for o in self.optims])
+    
+    def stop(self):
+        return any(o.stop() for o in self.optims)
 
 
 def bisection(f, k_min, k_max, iters):
