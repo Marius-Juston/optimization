@@ -81,7 +81,9 @@ def bisection(f, k_min, k_max, iters):
 
 # A learner interacts with the environment over n roounds
 def bisection_with_noise(f, k_min, k_max, iters, delta):  # page 54
+    inner_t = 0
     def bisect(x, y, n, delta):
+        nonlocal inner_t
         Ys = []
         xs = [
             (3 / 4) * x + (1 / 4) * y,  # x0
@@ -89,6 +91,7 @@ def bisection_with_noise(f, k_min, k_max, iters, delta):  # page 54
             (1 / 4) * x + (3 / 4) * y,  # x2
         ]
         for t in range(1, n+1):
+            inner_t += 1
             ct = sqrt((6 / t) * log(n / delta))
             
             Xt = xs[t % 3]
@@ -104,8 +107,10 @@ def bisection_with_noise(f, k_min, k_max, iters, delta):  # page 54
         return (x, y)
     
     z = 1 + ( log(iters) / log(4/3) )
-    for _ in range(1, iters+1):
-        k_min, k_max = bisect(x=k_min, y=k_max, n=iters, delta=delta/z)
+    while True:
+        if inner_t > iters: break
+        k_min, k_max = bisect(x=k_min, y=k_max, n=iters-inner_t+1, delta=delta/z)
+        print(f"{k_min:.3f} {k_max:.3f}")
         
     return (k_min + k_max) / 2
             
