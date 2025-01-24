@@ -200,7 +200,8 @@ if __name__ == "__main__":
 
     results2 = [
         test_optimization_method_class("RandomSearch", algorithms.RandomSearch, [Hartmann6, Quadratic, ExpSymmetric], iters=[60, 10, 10]),
-        test_optimization_method_class("Bayesian", algorithms.Bayesian, [Hartmann6, Quadratic, ExpSymmetric], iters=[60, 10, 10]),
+        # test_optimization_method_class("Bayesian", algorithms.Bayesian, [Hartmann6, Quadratic, ExpSymmetric], iters=[60, 10, 10]),
+        test_optimization_method_class("CMA-ES", algorithms.CMA_ES, [Hartmann6, Quadratic, ExpSymmetric], iters=[60, 10, 10]),
         # test_optimization_method_class("bisection_class", algorithms.Bisection, [Quadratic, ExpSymmetric])
     ]
 

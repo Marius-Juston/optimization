@@ -5,9 +5,11 @@ from ax.service.ax_client import AxClient, ObjectiveProperties
 from ax.modelbridge.generation_strategy import GenerationStep, GenerationStrategy
 from ax.modelbridge.registry import Models
 
+import cma
+
 
 class Optimizer:
-    def __init__(self, xmin, xmax, iter):
+    def __init__(self, xmin: list[float], xmax: list[float], iter: int):
         if type(xmin) != float and len(xmin) != len(xmax):
             raise ValueError("xmin and xmax must have same dimension")
         self._xmin = xmin
@@ -25,6 +27,29 @@ class Optimizer:
 
     def stop(self) -> bool:
         return self._iter <= 0
+    
+
+class CMA_ES(Optimizer):
+    def __init__(self, xmin, xmax, iter, x0=None, sigma0=None):
+        super().__init__(xmin, xmax, iter)
+
+        # TODO: could initialize x0 with some other method
+
+        if x0 is None:
+            x0 = (( np.array(xmin) + np.array(xmax) ) / 2).tolist()
+        if sigma0 is None:
+            sigma0 = float(np.mean( ( np.abs(np.array(xmin)) + np.abs(np.array(xmax)) ) / 6 ))
+        self.es = cma.CMAEvolutionStrategy(x0, sigma0)
+
+    def ask(self) -> list[np.ndarray]:
+        return self.es.ask()
+
+    def tell(self, x: list[np.ndarray], y: list[float]):
+        self.es.tell(x, y)
+        self._iter -= 1
+    
+    def best(self) -> np.ndarray:
+        return self.es.result.xbest
 
 
 class Bayesian(Optimizer):
