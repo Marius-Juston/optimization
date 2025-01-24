@@ -1,5 +1,8 @@
 from math import sqrt, log
 import numpy as np
+from ax.service.ax_client import AxClient, ObjectiveProperties
+from ax.service.utils.report_utils import exp_to_df
+from ax.utils.notebook.plotting import init_notebook_plotting, render
 
 
 class Optimizer:
@@ -23,6 +26,40 @@ class Optimizer:
         return self._iter <= 0
 
 
+class Bayesian(Optimizer):
+    def __init__(self, xmin, xmax, iter):
+        super().__init__(xmin, xmax, iter)
+        
+        self.ax_client = AxClient()
+        self.ax_client.create_experiment(
+            name="my_optimization",
+            parameters=[
+                {
+                    "name": f"param{i}",
+                    "type": "range",
+                    "bounds": [xmin[i], xmax[i]],
+                    "value_type": "float",
+                } for i in range(len(xmin))
+            ],
+            objectives={"cost": ObjectiveProperties(minimize=True)},
+            # could include parameter constraints or outcome constraints
+            # https://ax.dev/tutorials/tune_cnn_service.html
+        )
+        self.last_trial_index = None
+
+    def ask(self):
+        parameters, self.last_trial_index = self.ax_client.get_next_trial()
+        breakpoint()  # todo: check type of parameters
+        return parameters
+
+    def tell(self, x, y):
+        assert isinstance(y, float)
+        self.ax_client.complete_trial(trial_index=self.last_trial_index, raw_data=y)
+
+    def best(self):
+        pass
+
+
 class RandomSearch(Optimizer):
     def __init__(self, xmin, xmax, iter):
         super().__init__(xmin, xmax, iter)
@@ -32,7 +69,7 @@ class RandomSearch(Optimizer):
     def ask(self):
         return np.random.uniform(low=self._xmin, high=self._xmax)
 
-    def tell(self, x, y):
+    def tell(self, x: np.array, y: float):
         if y < self._y:
             self._x = x
             self._y = y
@@ -45,8 +82,15 @@ class RandomSearch(Optimizer):
 class Bisection(Optimizer):
     def __init__(self, xmin, xmax, iter):
         super().__init__(xmin, xmax, iter)
+
+        if not isinstance(xmin, float) and len(xmin) == 1:
+            xmin = xmin[0]
+        if not isinstance(xmax, float) and len(xmax) == 1:
+            xmax = xmax[0]
+        
         if type(xmin) != float and type(xmin) != int:
             raise ValueError("bisection only supports one dimensional search")
+        
         self._leftbound = xmin
         self._rightbound = xmax
 
@@ -91,17 +135,6 @@ class MultiBisection(Optimizer):
     
     def stop(self):
         return any(o.stop() for o in self.optims)
-
-
-def bisection(f, k_min, k_max, iters):
-    for _ in range(iters):
-        x0 = (2 / 3) * k_min + (1 / 3) * k_max
-        x1 = (1 / 3) * k_min + (2 / 3) * k_max
-        if f(x1) >= f(x0):
-            k_max = x1
-        else:
-            k_min = x0
-    return (k_min + k_max) / 2
 
 
 # A learner interacts with the environment over n roounds
