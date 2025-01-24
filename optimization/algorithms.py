@@ -1,8 +1,9 @@
 from math import sqrt, log
 import numpy as np
+
 from ax.service.ax_client import AxClient, ObjectiveProperties
-from ax.service.utils.report_utils import exp_to_df
-from ax.utils.notebook.plotting import init_notebook_plotting, render
+from ax.modelbridge.generation_strategy import GenerationStep, GenerationStrategy
+from ax.modelbridge.registry import Models
 
 
 class Optimizer:
@@ -13,24 +14,45 @@ class Optimizer:
         self._xmax = xmax
         self._iter = iter
 
-    def ask(self):
+    def ask(self) -> list[np.ndarray]:
         raise NotImplementedError
 
-    def tell(self, x, y):
+    def tell(self, x: list[np.ndarray], y: list[float]):
         raise NotImplementedError
     
-    def best(self):
+    def best(self) -> np.ndarray:
         raise NotImplementedError
 
-    def stop(self):
+    def stop(self) -> bool:
         return self._iter <= 0
 
 
 class Bayesian(Optimizer):
     def __init__(self, xmin, xmax, iter):
         super().__init__(xmin, xmax, iter)
+
+        initialization_iter = 5
         
-        self.ax_client = AxClient()
+        gs = GenerationStrategy(
+            steps=[
+                # Initialization
+                GenerationStep(
+                    model=Models.SOBOL,
+                    num_trials=initialization_iter,
+                    min_trials_observed=5,
+                    max_parallelism=1,
+                    model_kwargs={"seed": 42},
+                    model_gen_kwargs={},
+                ),
+                # Bayesian optimization
+                GenerationStep(
+                    model=Models.BOTORCH_MODULAR,
+                    num_trials=-1,
+                    max_parallelism=1,
+                )
+            ]
+        )
+        self.ax_client = AxClient(generation_strategy=gs)
         self.ax_client.create_experiment(
             name="my_optimization",
             parameters=[
@@ -47,17 +69,18 @@ class Bayesian(Optimizer):
         )
         self.last_trial_index = None
 
-    def ask(self):
+    def ask(self) -> list[np.ndarray]:
         parameters, self.last_trial_index = self.ax_client.get_next_trial()
-        breakpoint()  # todo: check type of parameters
-        return parameters
+        return np.array([v for k, v in parameters.items()])
 
-    def tell(self, x, y):
+    def tell(self, x: list[np.ndarray], y: list[float]):
         assert isinstance(y, float)
         self.ax_client.complete_trial(trial_index=self.last_trial_index, raw_data=y)
+        self._iter -= 1
 
-    def best(self):
-        pass
+    def best(self) -> np.ndarray:
+        best, values = self.ax_client.get_best_parameters()
+        return np.array([v for k, v in best.items()])
 
 
 class RandomSearch(Optimizer):
@@ -66,16 +89,16 @@ class RandomSearch(Optimizer):
         self._x = None
         self._y = float('inf')
 
-    def ask(self):
+    def ask(self) -> list[np.ndarray]:
         return np.random.uniform(low=self._xmin, high=self._xmax)
 
-    def tell(self, x: np.array, y: float):
+    def tell(self, x: list[np.ndarray], y: float):
         if y < self._y:
             self._x = x
             self._y = y
         self._iter -= 1
 
-    def best(self):
+    def best(self) -> np.ndarray:
         return self._x
     
 
@@ -91,15 +114,15 @@ class Bisection(Optimizer):
         if type(xmin) != float and type(xmin) != int:
             raise ValueError("bisection only supports one dimensional search")
         
-        self._leftbound = xmin
-        self._rightbound = xmax
+        self._leftbound = np.array([xmin])
+        self._rightbound = np.array([xmax])
 
-    def ask(self):
+    def ask(self) -> list[np.ndarray]:
         x0 = (2 / 3) * self._leftbound + (1 / 3) * self._rightbound
         x1 = (1 / 3) * self._leftbound + (2 / 3) * self._rightbound
         return [x0, x1]
     
-    def tell(self, x, y):
+    def tell(self, x: list[np.ndarray], y: list[float]):
         x0, x1 = x
         y0, y1 = y
         if y1 >= y0:
@@ -108,7 +131,7 @@ class Bisection(Optimizer):
             self._leftbound = x0
         self._iter -= 1
 
-    def best(self):
+    def best(self) -> np.ndarray:
         return (self._leftbound + self._rightbound) / 2
     
 
@@ -117,26 +140,27 @@ class MultiBisection(Optimizer):
         super().__init__(xmin, xmax, iter)
         self.optims = [Bisection(*args) for args in zip(xmin, xmax, iter)]
 
-    def ask(self):
+    def ask(self) -> list[np.ndarray]:
         x_new = [o.ask() for o in self.optims]
         x_new = list(zip(*x_new))
         x_new = [np.array(x) for x in x_new]
         return x_new
     
-    def tell(self, xs, ys):
+    def tell(self, xs: list[np.ndarray], ys):
         assert all(isinstance(x, np.ndarray) for x in xs)
         xs_ordered = list(zip(*xs))
         ys_ordered = list(zip(*ys))
         for x, y, o in zip(xs_ordered, ys_ordered, self.optims):
             o.tell(x,y) # (x0, x1) (y0, y1)
     
-    def best(self):
+    def best(self) -> np.array:
         return np.array([o.best() for o in self.optims])
     
-    def stop(self):
+    def stop(self) -> bool:
         return any(o.stop() for o in self.optims)
 
 
+# TODO: implement ask-and-tell
 # A learner interacts with the environment over n roounds
 def bisection_with_noise(f, k_min, k_max, iters, delta):  # page 54
     inner_t = 0
