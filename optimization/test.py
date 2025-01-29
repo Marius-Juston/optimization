@@ -1,9 +1,7 @@
-from collections.abc import Iterable
-from random import uniform
 import numpy as np
 import time
 
-import algorithms
+from . import algorithms
 
 eval_f = lambda f, x: [f(a) for a in x] if isinstance(x, list) else f(x)
 

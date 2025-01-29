@@ -33,11 +33,13 @@ class CMA_ES(Optimizer):
     def __init__(self, xmin, xmax, iter, x0=None, sigma0=None):
         super().__init__(xmin, xmax, iter)
 
-        # TODO: could initialize x0 with some other method
+        # TODO: could initialize x0 with some other method, since CMA_ES
+        # is a local optimizer
 
         if x0 is None:
             x0 = (( np.array(xmin) + np.array(xmax) ) / 2).tolist()
         if sigma0 is None:
+            # "x0 should be within sigma +- 3 of xstar"
             sigma0 = float(np.mean( ( np.abs(np.array(xmin)) + np.abs(np.array(xmax)) ) / 6 ))
         self.es = cma.CMAEvolutionStrategy(x0, sigma0)
 
@@ -99,8 +101,8 @@ class Bayesian(Optimizer):
         return np.array([v for k, v in parameters.items()])
 
     def tell(self, x: list[np.ndarray], y: list[float]):
-        assert isinstance(y, float)
-        self.ax_client.complete_trial(trial_index=self.last_trial_index, raw_data=y)
+        assert len(y) == 1
+        self.ax_client.complete_trial(trial_index=self.last_trial_index, raw_data=y[0])
         self._iter -= 1
 
     def best(self) -> np.ndarray:
@@ -115,13 +117,14 @@ class RandomSearch(Optimizer):
         self._y = float('inf')
 
     def ask(self) -> list[np.ndarray]:
-        return np.random.uniform(low=self._xmin, high=self._xmax)
+        return [np.random.uniform(low=self._xmin, high=self._xmax)]
 
-    def tell(self, x: list[np.ndarray], y: float):
-        if y < self._y:
-            self._x = x
-            self._y = y
-        self._iter -= 1
+    def tell(self, x: list[np.ndarray], y: list[float]):
+        for a, b in zip(x, y):
+            if b < self._y:
+                self._x = a
+                self._y = b
+            self._iter -= 1
 
     def best(self) -> np.ndarray:
         return self._x
