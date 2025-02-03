@@ -106,8 +106,12 @@ class Bayesian(Optimizer):
         self._iter -= 1
 
     def best(self) -> np.ndarray:
-        best, values = self.ax_client.get_best_parameters()
-        return np.array([v for k, v in best.items()])
+        tup = self.ax_client.get_best_parameters()
+        if tup is None:
+            return None
+        else:
+            best = tup[0]
+            return np.array([v for k, v in best.items()])        
 
 
 class RandomSearch(Optimizer):
