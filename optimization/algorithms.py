@@ -52,7 +52,7 @@ class CMA_ES(Optimizer):
         self._iter -= 1
     
     def best(self) -> np.ndarray:
-        return self.es.result.xbest
+        return self.es.result.xfavorite
 
 
 class Bayesian(Optimizer):
