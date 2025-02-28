@@ -30,7 +30,7 @@ class Optimizer:
     
 
 class CMA_ES(Optimizer):
-    def __init__(self, xmin, xmax, iter, x0=None, sigma0=None):
+    def __init__(self, xmin, xmax, iter, x0=None, sigma0=None, seed=None):
         super().__init__(xmin, xmax, iter)
 
         # TODO: could initialize x0 with some other method, since CMA_ES
@@ -41,7 +41,8 @@ class CMA_ES(Optimizer):
         if sigma0 is None:
             # "x0 should be within sigma +- 3 of xstar"
             sigma0 = float(np.mean( ( np.abs(np.array(xmin)) + np.abs(np.array(xmax)) ) / 6 ))
-        self.es = cma.CMAEvolutionStrategy(x0, sigma0)
+            
+        self.es = cma.CMAEvolutionStrategy(x0, sigma0, inopts={'seed': seed})
 
     def ask(self) -> list[np.ndarray]:
         return self.es.ask()
